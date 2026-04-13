@@ -934,7 +934,7 @@ async function syncNow(){
     const _unpaid=DB.subs.filter(s=>s.activeStatus==='ACTIVE'&&!_paid.has(s.id)&&(SHEET_MAX_MONTH[s.sheet]||'2026-03')>=_dym).length;
     const _totalPay=DB.subs.reduce((s,r)=>s+r.payments.length,0);
     const _totalHarv=DB.vendos.reduce((s,r)=>s+r.payments.length,0);
-    var _showYM2=localStorage.getItem('vt_dash_ym')||_lastYM;
+    var _showYM2=localStorage.getItem('vt_dash_ym')||(Object.values(SHEET_MAX_MONTH).sort().reverse()[0]||curYM());
     var _paidSet2=new Set(DB.subs.filter(function(s){return s.payments.find(function(p){return p.ym===_showYM2;});}).map(function(s){return s.id;}));
     var _uA2=DB.subs.filter(function(r){if(r.sheet==='Sindangan subscriber'&&_showYM2>'2026-02')return false;return r.activeStatus==='ACTIVE'&&!_paidSet2.has(r.id);}).length;
     var _uI2=DB.subs.filter(function(r){if(r.sheet==='Sindangan subscriber'&&_showYM2>'2026-02')return false;return r.activeStatus==='INACTIVE'&&!_paidSet2.has(r.id);}).length;

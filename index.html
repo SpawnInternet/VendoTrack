@@ -1601,7 +1601,7 @@ function openDetail(i, tp){
       html+='<div style="display:flex;gap:4px;align-items:center">';
       html+='<input id="'+memoColId+'" type="text" value="'+memoVal.replace(/"/g,'&quot;')+'" placeholder="Add memo…" ';
       html+='style="flex:1;padding:4px 7px;border:0.5px solid '+(memoVal?'#fde68a':'rgba(100,60,200,.15)')+';border-radius:5px;background:'+(memoVal?'#fef9c3':'var(--card)')+';font-size:11px;font-style:'+(memoVal?'italic':'normal')+';color:var(--t);min-width:120px" ';
-      html+='oninput="this.style.borderColor=this.value?'#fde68a':'rgba(100,60,200,.15)';this.style.background=this.value?'#fef9c3':'var(--card)'" ';
+      html+='oninput="this.style.borderColor=this.value?\"#fde68a\":\"rgba(100,60,200,.15)\";this.style.background=this.value?\"#fef9c3\":\"var(--card)\"" ';
       html+='onkeydown="if(event.key==='Enter'){event.preventDefault();saveMemo('+i+',\''+tp+'\',\''+ym2+'\',this.value)}" />';
       if(p&&p.memoCol&&p.memoCol>0){
         html+='<button onclick="event.stopPropagation();saveMemo('+i+',\''+tp+'\',\''+ym2+'\',document.getElementById(\''+memoColId+'\').value)" ';

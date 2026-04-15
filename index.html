@@ -723,12 +723,12 @@ const MN=["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", 
 const MNF=["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const SNAPSHOT={sheets:{}};
 
-const SHEET_MAX_MONTH={"Sindangan subscriber": "2026-02", "sindangan wifi": "2026-02", "PISO WIFI Dipolog to Roxas": "2026-03", "subscribers dapitan to roxas": "2026-04", "PISO WIFI - DAPITAN": "2026-03"};
-const BASHANG_ID='1dIHVamcJGA9LV5f06LgA6YzKZNTgYnn0_x1vVT3vdoY';
+const SHEET_MAX_MONTH={"Sindangan subscriber": "2026-03", "sindangan wifi": "2026-03", "PISO WIFI Dipolog to Roxas": "2026-04", "subscribers dapitan to roxas": "2026-04", "PISO WIFI - DAPITAN": "2026-04"};
+const BASHANG_ID='1jsukVlMJ8ynwQv6Df4PRNqDCWIdgTrFfGi69tX0ZgPs';
 const REPORT_ID='13HuJr7tYZsFSLbHPKB-Zu-i5GyQ1_A96muMthOzz8mA';
 const PG=80;
 // Embedded Apps Script URL — auto-updates old URL on open
-const EMBEDDED_URL='https://script.google.com/macros/s/AKfycbzMbOPP6VWYwB2ogav8QdwYWqqKDh7_3F4z3izye5TsvXGmtYymgjS3PG8cnHTmA23x/exec';
+const EMBEDDED_URL='https://script.google.com/macros/s/AKfycbzhX-GPFTKzZr71psqWF4Avf0P5BD3cUZHn3l0doUY_LwNkDQC4eDTaBrfsBmxoarYDNA/exec';
 // Always use embedded URL — never depends on localStorage or manual paste
 const scriptUrl=EMBEDDED_URL;
 localStorage.setItem('vt_script_url',EMBEDDED_URL);
@@ -830,7 +830,7 @@ function mergeFromLive(liveRecords, activeStatus){
       const livePayMap={};
       lr.payments.forEach(p=>livePayMap[p.ym]=p);
       v.payments=v.payments.filter(p=>!livePayMap[p.ym]);
-      lr.payments.forEach(p=>v.payments.push({ym:p.ym,date:p.date,amount:p.amount,dateCol:p.dateCol,amtCol:p.amtCol,rowIdx:lr.rowIdx,sheet:lr.sheet}));
+      lr.payments.forEach(p=>v.payments.push({ym:p.ym,date:p.date,amount:p.amount,dateCol:p.dateCol,amtCol:p.amtCol,memoCol:p.memoCol||(-1),memo:p.memo||'',rowIdx:lr.rowIdx,sheet:lr.sheet}));
       v.payments.sort((a,b)=>a.ym.localeCompare(b.ym));
     } else {
       let s=DB.subs.find(x=>x.name.toLowerCase()===key);
@@ -845,7 +845,7 @@ function mergeFromLive(liveRecords, activeStatus){
       const livePayMap={};
       lr.payments.forEach(p=>livePayMap[p.ym]=p);
       s.payments=s.payments.filter(p=>!livePayMap[p.ym]);
-      lr.payments.forEach(p=>s.payments.push({ym:p.ym,date:p.date,amount:p.amount,dateCol:p.dateCol,amtCol:p.amtCol,rowIdx:p.rowIdx,sheet:lr.sheet}));
+      lr.payments.forEach(p=>s.payments.push({ym:p.ym,date:p.date,amount:p.amount,dateCol:p.dateCol,amtCol:p.amtCol,memoCol:p.memoCol||(-1),memo:p.memo||'',rowIdx:p.rowIdx,sheet:lr.sheet}));
       s.payments.sort((a,b)=>a.ym.localeCompare(b.ym));
     }
   });
@@ -866,21 +866,21 @@ function buildFromLive(liveRecords, activeStatus){
     const ast=activeStatus[lr.name]||lr.activeStatus||'ACTIVE';
     const pays=(lr.payments||[]).map(function(p){
       return {ym:p.ym,date:p.date,amount:p.amount,
-              dateCol:p.dateCol,amtCol:p.amtCol,
-              rowIdx:lr.rowIdx,sheet:lr.sheet};
+              dateCol:p.dateCol,amtCol:p.amtCol,memoCol:p.memoCol||(-1),
+              memo:p.memo||'',rowIdx:lr.rowIdx,sheet:lr.sheet};
     });
     if(lr.type==='wifi'){
       if(seenV.has(key)) return; // skip duplicates
       seenV.add(key);
       DB.vendos.push({id:'l_'+key,name:lr.name,addr:lr.addr,
         vlan:lr.vlan||lr.extra,sheet:lr.sheet,
-        activeStatus:ast,ri:lr.rowIdx,payments:pays});
+        activeStatus:ast,ri:lr.rowIdx,statusCol:lr.statusCol||4,statusColVal:lr.statusCol,payments:pays});
     } else {
       if(seenS.has(key)) return; // true duplicate (same name+addr+sheet)
       seenS.add(key);
       DB.subs.push({id:'l_'+key,name:lr.name,addr:lr.addr,
         dueDay:lr.dueDay||lr.extra,sheet:lr.sheet,
-        activeStatus:ast,ri:lr.rowIdx,payments:pays});
+        activeStatus:ast,ri:lr.rowIdx,statusCol:lr.statusCol||5,statusColVal:lr.statusCol,payments:pays});
     }
   });
 
@@ -1314,7 +1314,7 @@ async function toggleV(i){
   const r=DB.vendos[i];const ns=r.activeStatus==='ACTIVE'?'INACTIVE':'ACTIVE';
   if(!confirm(`Mark "${r.name}" as ${ns}?`))return;
   r.activeStatus=ns;saveLocal();renderVendos();renderDash();
-  await push({action:'writeCell',sheet:r.sheet,rowIdx:r.ri,dateCol:-1,amtCol:-1,statusVal:ns,nameVal:r.name});
+  await push({action:'writeStatus',sheet:r.sheet,rowIdx:r.ri,statusCol:r.statusCol||4,status:ns});
   showAlert(`${r.name} marked ${ns}.`);
 }
 function exportVendos(){toX(vpD.map(r=>{const lp=r.payments.length?r.payments[r.payments.length-1]:null;return{Name:r.name,VLAN:r.vlan,Address:r.addr,Sheet:r.sheet,Status:r.activeStatus,LastHarvest:lp?yl(lp.ym):'',LastAmount:lp?lp.amount:'',TotalHarvests:r.payments.length};}),'Vendos.xlsx');}
@@ -1379,7 +1379,7 @@ async function toggleS(i){
   const r=DB.subs[i];const ns=r.activeStatus==='ACTIVE'?'INACTIVE':'ACTIVE';
   if(!confirm(`Mark "${r.name}" as ${ns}?`))return;
   r.activeStatus=ns;saveLocal();renderSubs();renderDash();
-  await push({action:'writeCell',sheet:r.sheet,rowIdx:r.ri,dateCol:-1,amtCol:-1,statusVal:ns,nameVal:r.name});
+  await push({action:'writeStatus',sheet:r.sheet,rowIdx:r.ri,statusCol:r.statusCol||5,status:ns});
   showAlert(`${r.name} marked ${ns}.`);
 }
 function exportSubs(){const ym=curYM();toX(spD.map(r=>{const lp=r.payments.length?r.payments[r.payments.length-1]:null;const st=getDueStatus(r,ym);return{Name:r.name,Address:r.addr,Area:r.sheet,DueDay:r.dueDay,Status:r.activeStatus,PaymentStatus:st,LastPayment:lp?yl(lp.ym):'',LastAmount:lp?lp.amount:'',TotalPayments:r.payments.length};}),'Subscribers.xlsx');}
@@ -1525,7 +1525,7 @@ function exportHMS(){
   toX(hmspD2.map(r=>{const o={Subscriber:r.name,DueDay:r.dueDay,Status:r.activeStatus};const ps=new Set(r.payments.map(p=>p.ym));YMS.forEach(ym=>o[yl(ym)]=ps.has(ym)?'Paid':'—');return o;}),'Heatmap_Subscribers.xlsx');
 }
 
-// ====== DETAIL MODAL — PAYMENT HISTORY ======
+// ====== DETAIL MODAL — PAYMENT HISTORY + MEMO ======
 function openDetail(i, tp){
   if(i===undefined||i===null||i<0){showAlert('Record not found. Try syncing first.','err');return;}
   var r=tp==='v'?DB.vendos[i]:DB.subs[i];
@@ -1535,7 +1535,6 @@ function openDetail(i, tp){
   var payMap={};
   r.payments.forEach(function(p){payMap[p.ym]=p;});
 
-  // Header
   var html='';
   html+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
   html+='<span style="font-size:12px;background:#f5f3ff;padding:3px 10px;border-radius:6px;color:#5b21b6">'+(isV?'Piso WiFi / Vendo':'Subscriber')+'</span>';
@@ -1549,7 +1548,6 @@ function openDetail(i, tp){
   html+='<div style="font-size:12px;color:var(--mu)">Total: <strong style="color:#7c3aed">'+fmt(r.payments.reduce(function(s,p){return s+parseFloat(p.amount||0);},0))+'</strong></div>';
   html+='</div>';
 
-  // Build year groups
   var allYMs=[].concat(YMS);
   r.payments.forEach(function(p){if(allYMs.indexOf(p.ym)<0) allYMs.push(p.ym);});
   allYMs.sort();
@@ -1560,7 +1558,6 @@ function openDetail(i, tp){
     ymByYear[yr].push(ym2);
   });
 
-  // One table per year stacked vertically
   Object.keys(ymByYear).sort().forEach(function(yr){
     var yms=ymByYear[yr];
     var yrPays=yms.map(function(ym2){return payMap[ym2];}).filter(Boolean);
@@ -1572,22 +1569,26 @@ function openDetail(i, tp){
     html+='</div>';
     html+='<table style="width:100%;border-collapse:collapse;font-size:13px">';
     html+='<thead><tr style="background:#f5f3ff">';
-    html+='<th style="padding:8px 10px;text-align:left;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12);width:22%">Month</th>';
-    html+='<th style="padding:8px 10px;text-align:center;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12);width:24%">Status</th>';
-    html+='<th style="padding:8px 10px;text-align:right;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12);width:20%">Amount</th>';
-    html+='<th style="padding:8px 10px;text-align:left;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12)">Date '+(isV?'Collected':'Paid')+'</th>';
-    if(!isV) html+='<th style="padding:8px 10px;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12);text-align:right">Balance</th>';
-    html+='<th style="padding:8px 10px;width:40px;border-bottom:1px solid rgba(100,60,200,.12)"></th>';
+    html+='<th style="padding:8px 10px;text-align:left;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12);width:15%">Month</th>';
+    html+='<th style="padding:8px 10px;text-align:center;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12);width:14%">Status</th>';
+    html+='<th style="padding:8px 10px;text-align:right;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12);width:13%">Amount</th>';
+    html+='<th style="padding:8px 10px;text-align:left;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12);width:14%">Date '+(isV?'Collected':'Paid')+'</th>';
+    if(!isV) html+='<th style="padding:8px 10px;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12);text-align:right;width:12%">Balance</th>';
+    html+='<th style="padding:8px 10px;color:#7c3aed;font-weight:500;border-bottom:1px solid rgba(100,60,200,.12)">Memo</th>';
+    html+='<th style="padding:8px 10px;width:50px;border-bottom:1px solid rgba(100,60,200,.12)"></th>';
     html+='</tr></thead><tbody>';
+
     yms.forEach(function(ym2){
       var p=payMap[ym2];
       var st=p?(isV?'HARVESTED':'PAID'):(isV?'NOT_HARVESTED':getDueStatus(r,ym2));
       var bg=p?(isV?'#ede9fe':'#f0fdf4'):'#ffffff';
-      html+='<tr onclick="prefillInput('+i+',\''+tp+'\',\''+ym2+'\');" style="cursor:pointer;background:'+bg+'">';
-      html+='<td style="padding:8px 10px;border-bottom:1px solid rgba(100,60,200,.08);font-weight:600">'+yl(ym2)+'</td>';
-      html+='<td style="padding:8px 10px;border-bottom:1px solid rgba(100,60,200,.08);text-align:center">'+pill(st)+'</td>';
-      html+='<td style="padding:8px 10px;border-bottom:1px solid rgba(100,60,200,.08);text-align:right;font-weight:'+(p?'700':'400')+';color:'+(p?'#7c3aed':'#aaa')+'">'+(p?fmt(p.amount):'—')+'</td>';
-      html+='<td style="padding:8px 10px;border-bottom:1px solid rgba(100,60,200,.08);color:#6b6b67;font-size:12px">'+(p&&p.date?p.date:'—')+'</td>';
+      var memoVal=p&&p.memo?p.memo:'';
+      var memoColId='memo_'+i+'_'+ym2.replace('-','_');
+      html+='<tr style="background:'+bg+'">';
+      html+='<td style="padding:8px 10px;border-bottom:1px solid rgba(100,60,200,.08);font-weight:600" onclick="prefillInput('+i+',\''+tp+'\',\''+ym2+'\')">'+yl(ym2)+'</td>';
+      html+='<td style="padding:8px 10px;border-bottom:1px solid rgba(100,60,200,.08);text-align:center" onclick="prefillInput('+i+',\''+tp+'\',\''+ym2+'\')">'+pill(st)+'</td>';
+      html+='<td style="padding:8px 10px;border-bottom:1px solid rgba(100,60,200,.08);text-align:right;font-weight:'+(p?'700':'400')+';color:'+(p?'#7c3aed':'#aaa')+'" onclick="prefillInput('+i+',\''+tp+'\',\''+ym2+'\'">'+(p?fmt(p.amount):'—')+'</td>';
+      html+='<td style="padding:8px 10px;border-bottom:1px solid rgba(100,60,200,.08);color:#6b6b67;font-size:12px" onclick="prefillInput('+i+',\''+tp+'\',\''+ym2+'\'">'+(p&&p.date?p.date:'—')+'</td>';
       if(!isV){
         var _rates3=getRates();
         var _rate3=_rates3[(r.name||'').toLowerCase()]||0;
@@ -1595,13 +1596,29 @@ function openDetail(i, tp){
         var _balCell=_rate3>0&&p?(_bal3>0?'<span style="color:#be123c;font-weight:600">'+fmt(_bal3)+'</span>':'<span style="color:#0F6E56;font-weight:600">✓ Settled</span>'):'<span style="color:#aaa">—</span>';
         html+='<td style="padding:8px 10px;border-bottom:1px solid rgba(100,60,200,.08);text-align:right">'+_balCell+'</td>';
       }
+      // Memo cell — inline editable
+      html+='<td style="padding:4px 8px;border-bottom:1px solid rgba(100,60,200,.08)">';
+      html+='<div style="display:flex;gap:4px;align-items:center">';
+      html+='<input id="'+memoColId+'" type="text" value="'+memoVal.replace(/"/g,'&quot;')+'" placeholder="Add memo…" ';
+      html+='style="flex:1;padding:4px 7px;border:0.5px solid '+(memoVal?'#fde68a':'rgba(100,60,200,.15)')+';border-radius:5px;background:'+(memoVal?'#fef9c3':'var(--card)')+';font-size:11px;font-style:'+(memoVal?'italic':'normal')+';color:var(--t);min-width:120px" ';
+      html+='oninput="this.style.borderColor=this.value?'#fde68a':'rgba(100,60,200,.15)';this.style.background=this.value?'#fef9c3':'var(--card)'" ';
+      html+='onkeydown="if(event.key==='Enter'){event.preventDefault();saveMemo('+i+',\''+tp+'\',\''+ym2+'\',this.value)}" />';
+      if(p&&p.memoCol&&p.memoCol>0){
+        html+='<button onclick="event.stopPropagation();saveMemo('+i+',\''+tp+'\',\''+ym2+'\',document.getElementById(\''+memoColId+'\').value)" ';
+        html+='style="padding:2px 7px;border:0.5px solid rgba(100,60,200,.3);border-radius:5px;background:#f5f3ff;color:#7c3aed;font-size:10px;cursor:pointer" title="Save memo">💾</button>';
+        html+='<button onclick="event.stopPropagation();document.getElementById(\''+memoColId+'\').value=\'\';saveMemo('+i+',\''+tp+'\',\''+ym2+'\',\'\')" ';
+        html+='style="padding:2px 7px;border:0.5px solid #fda4af;border-radius:5px;background:#fff1f2;color:#be123c;font-size:10px;cursor:pointer" title="Clear memo">✕</button>';
+      } else {
+        html+='<span style="font-size:10px;color:#aaa" title="Sync first to enable memo save">🔒</span>';
+      }
+      html+='</div></td>';
+      // Delete button
       html+=(p?'<td style="padding:4px 8px;border-bottom:1px solid rgba(100,60,200,.08)"><button onclick="event.stopPropagation();deletePayment('+i+',\''+tp+'\',\''+ym2+'\')" style="padding:2px 7px;border:0.5px solid #fda4af;border-radius:5px;background:#fff1f2;color:#be123c;font-size:10px;cursor:pointer;font-weight:600">Del</button></td>':'<td style="border-bottom:1px solid rgba(100,60,200,.08)"></td>');
       html+='</tr>';
     });
     html+='</tbody></table></div>';
   });
 
-  // Action buttons - use createElement to avoid quote escaping
   var actDiv=document.createElement('div');
   actDiv.style.cssText='margin-top:14px;display:flex;gap:8px;flex-wrap:wrap';
   var recBtn=document.createElement('button');
@@ -1618,8 +1635,32 @@ function openDetail(i, tp){
   var modb=document.getElementById('mod-b');
   modb.innerHTML=html;
   modb.appendChild(actDiv);
-
   document.getElementById('modal').classList.add('open');
+}
+
+// Save memo to Google Sheet + update in DB
+async function saveMemo(i, tp, ym, memoText){
+  var r=tp==='v'?DB.vendos[i]:DB.subs[i];
+  if(!r) return;
+  var p=r.payments.find(function(x){return x.ym===ym;});
+  if(!p||!p.memoCol||p.memoCol<0){showAlert('No memo column found — sync first.','err');return;}
+  try{
+    var res=await fetch(scriptUrl,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'writeMemo',sheet:r.sheet,rowIdx:p.rowIdx,memoCol:p.memoCol,memoText:memoText})});
+    var d=await res.json();
+    if(d.error){showAlert('Error saving memo: '+d.error,'err');return;}
+    // Update in DB
+    p.memo=memoText;
+    showAlert('Memo saved!','ok');
+    // Re-style the input
+    var colId='memo_'+i+'_'+ym.replace('-','_');
+    var inp=document.getElementById(colId);
+    if(inp){
+      inp.style.borderColor=memoText?'#fde68a':'rgba(100,60,200,.15)';
+      inp.style.background=memoText?'#fef9c3':'var(--card)';
+      inp.style.fontStyle=memoText?'italic':'normal';
+    }
+  }catch(e){showAlert('Error saving memo.','err');}
 }
 
 function prefillInput(i, tp, ym){
@@ -1767,29 +1808,57 @@ function clearPV(){['pv-name','pv-dt','pv-amt','pv-notes'].forEach(id=>{if(docum
 
 // ====== ADD VENDO / SUBSCRIBER ======
 async function saveVendo(){
-  const nm=document.getElementById('vf-name').value.trim();const addr=document.getElementById('vf-addr').value.trim();
+  const nm=document.getElementById('vf-name').value.trim();
+  const addr=document.getElementById('vf-addr').value.trim();
   if(!nm||!addr){showAlert('Name and address required.','err');return;}
   const sh=document.getElementById('vf-sh').value;
-  const rowData=[nm,addr,document.getElementById('vf-vlan').value,'','','','','','','','','','','',''];
-  const result=await push({action:'addRecord',sheet:sh,rowData});
+  const vlan=document.getElementById('vf-vlan').value||'';
+  const notes=document.getElementById('vf-notes').value||'';
+  // Col layout: name | addr | vlan | STATUS | [Jan date | Jan amt | Jan memo | Feb... per month]
+  // Start with fixed cols, rest blank — Apps Script pads to sheet width
+  const rowData=[nm, addr, vlan, 'ACTIVE'];
+  // Pad blanks for all month columns (sheet handles the rest)
+  for(var _i=0;_i<30;_i++) rowData.push('');
+  const result=await push({action:'addRecord',sheet:sh,rowData,statusCol:4});
   if(result&&!result.error){
-    DB.vendos.push({id:'l_'+nm.toLowerCase(),name:nm,addr,vlan:document.getElementById('vf-vlan').value,sheet:sh,activeStatus:'ACTIVE',ri:result.rowIdx||0,payments:[]});
-    saveLocal();clearVF();showAlert('Vendo added to Google Sheet!');renderDash();renderVendos();populateLists();
-  } else showAlert('Save failed.','err');
+    DB.vendos.push({
+      id:'l_'+nm.toLowerCase()+'_'+addr.toLowerCase(),
+      name:nm, addr:addr, vlan:vlan, sheet:sh,
+      activeStatus:'ACTIVE', ri:result.rowIdx||0,
+      statusCol:4, payments:[]
+    });
+    saveLocal();clearVF();
+    showAlert('✅ Vendo "'+nm+'" added to Google Sheet!');
+    renderDash();renderVendos();populateLists();
+  } else showAlert('Save failed: '+(result&&result.error?result.error:'unknown error'),'err');
 }
 function clearVF(){['vf-name','vf-vlan','vf-addr','vf-contact','vf-notes'].forEach(id=>document.getElementById(id).value='');document.getElementById('vf-date').value=today();}
 
 async function saveSub(){
-  const nm=document.getElementById('sf-name').value.trim();const addr=document.getElementById('sf-addr').value.trim();
+  const nm=document.getElementById('sf-name').value.trim();
+  const addr=document.getElementById('sf-addr').value.trim();
   if(!nm||!addr){showAlert('Name and address required.','err');return;}
   const sh=document.getElementById('sf-sh').value;
-  const due=document.getElementById('sf-due').value;
-  const rowData=[nm,addr,'',due,'','','','','','','','','','',''];
-  const result=await push({action:'addRecord',sheet:sh,rowData});
+  const due=document.getElementById('sf-due').value||'';
+  const plan=document.getElementById('sf-plan').value||'';
+  const notes=document.getElementById('sf-notes').value||'';
+  // Col layout: name | addr | subscriber_id | due_day | STATUS | [month cols...]
+  // Auto-generate a simple subscriber ID from name
+  const subId=nm.replace(/[^a-zA-Z0-9]/g,'').substring(0,6).toUpperCase()+'_'+Date.now().toString(36).toUpperCase();
+  const rowData=[nm, addr, subId, due, 'ACTIVE'];
+  for(var _i=0;_i<30;_i++) rowData.push('');
+  const result=await push({action:'addRecord',sheet:sh,rowData,statusCol:5});
   if(result&&!result.error){
-    DB.subs.push({id:'l_'+nm.toLowerCase(),name:nm,addr,dueDay:due,sheet:sh,activeStatus:'ACTIVE',ri:result.rowIdx||0,payments:[]});
-    saveLocal();clearSF();showAlert('Subscriber added to Google Sheet!');renderDash();renderSubs();populateLists();
-  } else showAlert('Save failed.','err');
+    DB.subs.push({
+      id:'l_'+nm.toLowerCase()+'_'+addr.toLowerCase(),
+      name:nm, addr:addr, dueDay:due, sheet:sh,
+      activeStatus:'ACTIVE', ri:result.rowIdx||0,
+      statusCol:5, payments:[]
+    });
+    saveLocal();clearSF();
+    showAlert('✅ Subscriber "'+nm+'" added to Google Sheet!');
+    renderDash();renderSubs();populateLists();
+  } else showAlert('Save failed: '+(result&&result.error?result.error:'unknown error'),'err');
 }
 function clearSF(){['sf-name','sf-contact','sf-addr','sf-plan','sf-due','sf-notes'].forEach(id=>document.getElementById(id).value='');document.getElementById('sf-date').value=today();}
 
@@ -1800,7 +1869,7 @@ async function savePO(){
   const v=DB.vendos.find(r=>r.name.toLowerCase()===nm.toLowerCase());
   if(!v){showAlert('Vendo not found.','err');return;}
   v.activeStatus='INACTIVE';saveLocal();renderDash();renderVendos();
-  await push({action:'writeCell',sheet:v.sheet,rowIdx:v.ri,dateCol:-1,amtCol:-1,statusVal:'INACTIVE',nameVal:nm});
+  await push({action:'writeStatus',sheet:v.sheet,rowIdx:v.ri,statusCol:v.statusCol||4,status:'INACTIVE'});
   clearPO();showAlert(nm+' pulled out and marked inactive.');
 }
 function clearPO(){['po-name','po-dt','po-reason'].forEach(id=>document.getElementById(id).value='');}
@@ -1811,7 +1880,7 @@ async function saveCO(){
   const s=DB.subs.find(r=>r.name.toLowerCase()===nm.toLowerCase());
   if(!s){showAlert('Subscriber not found.','err');return;}
   s.activeStatus='INACTIVE';saveLocal();renderDash();renderSubs();
-  await push({action:'writeCell',sheet:s.sheet,rowIdx:s.ri,dateCol:-1,amtCol:-1,statusVal:'INACTIVE',nameVal:nm});
+  await push({action:'writeStatus',sheet:s.sheet,rowIdx:s.ri,statusCol:s.statusCol||5,status:'INACTIVE'});
   clearCO();showAlert(nm+' cut off and marked inactive.');
 }
 function clearCO(){['co-name','co-dt','co-reason'].forEach(id=>document.getElementById(id).value='');}
